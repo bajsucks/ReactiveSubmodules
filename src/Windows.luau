@@ -83,7 +83,6 @@ function WindowObj.GetState(self:WindowObj)
 end
 
 function WindowObj.SetState(self:WindowObj, state:boolean, Anim:string?)
-    print("setting state to", state)
     if Anim == "Pop" then
         self:Pop(state)
     else
@@ -99,7 +98,6 @@ function WindowObj.Pop(self:WindowObj, state:boolean)
     end
     local Window:GuiObject = self.Window
     local UIScale = Window:FindFirstChildWhichIsA("UIScale") :: UIScale
-    assert(UIScale, "Cannot play animation: UIScale was removed!")
     local tween: Tween
     if state then
         tween = TweenService:Create(UIScale, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Scale = 1})
@@ -107,7 +105,6 @@ function WindowObj.Pop(self:WindowObj, state:boolean)
         tween = TweenService:Create(UIScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 0})
     end
     tween:Play()
-    print("played tween")
     self.Janitor:Add(tween.Completed:Once(function()
         self.Window.Visible = state
         self.Action = nil
@@ -124,7 +121,6 @@ function module.ButtonNew(Button:GuiButton)
     local AnimOpen = Button:GetAttribute("AnimOpen") :: string?
     local AnimClose = Button:GetAttribute("AnimClose") :: string? -- "None" will FORCE the window to nil. If not "None", CloseOthers and CloseOthersOfType will use DefaultCloseAnim from window.
     Button.Activated:Connect(function()
-        print("activate happened")
         local self = module.FromWindowUID(TargetUID)
         if not self then return end
         if ButtonType == "Open" then
