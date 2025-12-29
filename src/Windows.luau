@@ -4,6 +4,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
 local TweenService = game:GetService("TweenService")
 
@@ -11,11 +12,6 @@ local Janitor = require(ReplicatedStorage.Packages.jTools.Janitor)
 local module = {}
 local WindowObj = {}
 WindowObj.__index = WindowObj
-
-module.Tags = {
-    Window = module.WindowNew,
-    WindowManager = module.ButtonNew
-}
 
 local RegisterUID = {} :: {string:WindowObj}
 local RegisterType = {} :: {string:{WindowObj}}
@@ -49,6 +45,7 @@ function WindowObj.CloseOthers(self:WindowObj, Anim:string?)
 end
 
 function module.WindowNew(Window:GuiObject)
+    if Window:IsDescendantOf(StarterGui) then return end
     local self = setmetatable({}, WindowObj)
     assert(Window:IsA("GuiObject"), "The only eligable class for windows is GuiObject!")
     
@@ -86,6 +83,7 @@ function WindowObj.GetState(self:WindowObj)
 end
 
 function WindowObj.SetState(self:WindowObj, state:boolean, Anim:string?)
+    print("setting state to", state)
     if Anim == "Pop" then
         self:Pop(state)
     else
@@ -101,6 +99,7 @@ function WindowObj.Pop(self:WindowObj, state:boolean)
     end
     local Window:GuiObject = self.Window
     local UIScale = Window:FindFirstChildWhichIsA("UIScale") :: UIScale
+    assert(UIScale, "Cannot play animation: UIScale was removed!")
     local tween: Tween
     if state then
         tween = TweenService:Create(UIScale, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Scale = 1})
@@ -108,6 +107,7 @@ function WindowObj.Pop(self:WindowObj, state:boolean)
         tween = TweenService:Create(UIScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 0})
     end
     tween:Play()
+    print("played tween")
     self.Janitor:Add(tween.Completed:Once(function()
         self.Window.Visible = state
         self.Action = nil
@@ -115,6 +115,7 @@ function WindowObj.Pop(self:WindowObj, state:boolean)
 end
 
 function module.ButtonNew(Button:GuiButton)
+    if Button:IsDescendantOf(StarterGui) then return end
     local TargetUID = Button:GetAttribute("TargetUID") :: string?
     assert(TargetUID, "Failed to create a WindowManager: TargetUID is not specified!")
     local ButtonType = Button:GetAttribute("ButtonType") or "Switch"
@@ -144,6 +145,11 @@ function module.ButtonNew(Button:GuiButton)
         end
     end)
 end
+
+module.Tags = {
+    Window = module.WindowNew,
+    WindowManager = module.ButtonNew
+}
 
 export type WindowObj = typeof(module.WindowNew())
 
