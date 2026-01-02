@@ -85,7 +85,12 @@ function module.WindowNew(Window:GuiObject)
 end
 
 function WindowObj.GetState(self:WindowObj)
-    local state = self.Window.Visible
+    local state = false
+    if jUtil.HasProperty(self.Window, "Visible") then
+        state = self.Window.Visible
+    elseif jUtil.HasProperty(self.Window, "Enabled") then
+        state = self.Window.Enabled
+    end
     if self.Action == "Close" then
         return not state
     else
