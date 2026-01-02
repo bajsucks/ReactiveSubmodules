@@ -48,11 +48,11 @@ function WindowObj.CloseOthers(self:WindowObj, Anim:string?)
     end
 end
 
-function module.WindowNew(Window:GuiObject)
+function module.WindowNew(Window:GuiObject|LayerCollector)
     if Window:IsDescendantOf(StarterGui) then return end
     local self = setmetatable({}, WindowObj)
-    assert(Window:IsA("GuiObject"), "The only eligable class for windows is GuiObject!")
-    
+    assert(jUtil.IsA(Window, {"GuiObject", "LayerCollector"}), "The only eligable classes for windows are GuiObject or LayerCollector!")
+
     local UID = Window:GetAttribute("WindowUID") :: string?
     local Type = Window:GetAttribute("WindowType") :: string?
     local DefaultCloseAnim = Window:GetAttribute("DefaultCloseAnim") :: string?
@@ -62,20 +62,22 @@ function module.WindowNew(Window:GuiObject)
     end
     assert(not FoundUIScale, `Windows cannot be controlled by UIScale! If you *need* UIScale, change it's hierarchy, so it's not a direct child of the window.`)
 
-    local UIScale = Instance.new("UIScale")
-    UIScale.Parent = Window
-    if Window.Visible then
-        UIScale.Scale = 1
-    else
-        UIScale.Scale = 0
-    end
-
     self.UID = UID
     self.Type = Type
     self.Window = Window
     self.Action = nil
     self.DefaultCloseAnim = DefaultCloseAnim
     self.Janitor = Janitor.new()
+    if not Window:IsA("LayerCollector") then
+        local UIScale = Instance.new("UIScale")
+        UIScale.Parent = Window
+        if self:GetState() then
+            UIScale.Scale = 1
+        else
+            UIScale.Scale = 0
+        end
+    end
+
     RegisterUID[UID] = self
     if Type then
         RegisterType[Type] = RegisterType[Type] or {}
@@ -114,7 +116,7 @@ function WindowObj.Pop(self:WindowObj, state:boolean, speed:number?)
     self.Janitor:Cleanup()
     self.Action = state and "Open" or "Close"
     if state then
-        self.Window.Visible = state
+        self:SetState(state)
     end
     local Window:GuiObject = self.Window
     local UIScale = Window:FindFirstChildWhichIsA("UIScale") :: UIScale
@@ -129,7 +131,7 @@ function WindowObj.Pop(self:WindowObj, state:boolean, speed:number?)
     end
     tween:Play()
     self.Janitor:Add(tween.Completed:Once(function()
-        self.Window.Visible = state
+        self:SetState(state)
         self.Action = nil
     end))
 end
