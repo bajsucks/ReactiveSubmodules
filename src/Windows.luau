@@ -3,15 +3,32 @@
     To be used with ReactiveTags
 
     Dependency: jTools https://github.com/bajsucks/jTools has to be placed in ReplicatedStorage.Packages
-    ^ If you don't want to install it, you can just download jUtil and Janitor separately. jUtil is only used for .HasProperty() function.
+    ^ If you don't want to install it, you can just download jUtil, Scaler and Janitor separately. jUtil is only used for .HasProperty() function.
+]]
+--[[
+    Usage:
+
+    Tag - Window
+    Attribute - WindowUID* - UID of the window. Should only be used at 1 window at a time.
+    Attribute - WindowType - Type of the window. Used for .CloseAllType()
+    Attribute - DefaultCloseAnim - Default closing animation (I forgot what this is tbh never used it)
+
+    Tag - WindowManager
+    Attribute - TargetUID* - Target WindowUID. This will be the window that this manager affects.
+    Attribute - ButtonType - [Close/Open/Switch]
+    Attribute - CloseOthers - Whether this manager will close all other windows that are not the target.
+    Attribute - CloseOthersOfType - Whether this manager will close all windows of a selected type that are not the target.
+    Attribute - AnimOpen - Animation to use when opening the target window
+    Attribute - AnimOpenSpeed - Length of that animation in seconds
+    Attribute - AnimClose - Animation to use when closing the target window
+    Attribute - AnimCloseSpeed - Length of that animation in seconds
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
-local TweenService = game:GetService("TweenService")
-
 local Janitor = require(ReplicatedStorage.Packages.jTools.Janitor)
+local Scaler = require(ReplicatedStorage.Packages.jTools.Scaler)
 local jUtil = require(ReplicatedStorage.Packages.jTools.jUtil)
 local module = {}
 local WindowObj = {}
@@ -19,6 +36,17 @@ WindowObj.__index = WindowObj
 
 local RegisterUID = {} :: {string:WindowObj}
 local RegisterType = {} :: {string:{WindowObj}}
+
+local function ChangeScale(UIScale:UIScale, Value:number)
+    if not UIScale then return end
+    local sc = Scaler.FromInstance(UIScale, "Scale")
+    sc:Effect("Window", Value)
+end
+
+local function GetEffector(UIScale:UIScale)
+    if not UIScale then return end
+    return Scaler.FromInstance(UIScale, "Scale")
+end
 
 function module.FromWindowUID(WindowUID:string): WindowObj
     return RegisterUID[WindowUID]
@@ -56,11 +84,6 @@ function module.WindowNew(Window:GuiObject|LayerCollector)
     local UID = Window:GetAttribute("WindowUID") :: string?
     local Type = Window:GetAttribute("WindowType") :: string?
     local DefaultCloseAnim = Window:GetAttribute("DefaultCloseAnim") :: string?
-    local FoundUIScale = Window:FindFirstChildWhichIsA("UIScale")
-    if FoundUIScale then
-        print(Window)
-    end
-    assert(not FoundUIScale, `Windows cannot be controlled by UIScale! If you *need* UIScale, change it's hierarchy, so it's not a direct child of the window.`)
 
     self.UID = UID
     self.Type = Type
@@ -69,13 +92,13 @@ function module.WindowNew(Window:GuiObject|LayerCollector)
     self.DefaultCloseAnim = DefaultCloseAnim
     self.Janitor = Janitor.new()
     if not Window:IsA("LayerCollector") then
-        local UIScale = Instance.new("UIScale")
-        UIScale.Parent = Window
-        if self:GetState() then
-            UIScale.Scale = 1
-        else
-            UIScale.Scale = 0
-        end
+        self.UIScale = Window:FindFirstChildWhichIsA("UIScale") or Instance.new("UIScale")
+        self.UIScale.Parent = Window
+    end
+    if self:GetState() then
+        ChangeScale(self.UIScale, 1)
+    else
+        ChangeScale(self.UIScale, 0)
     end
 
     RegisterUID[UID] = self
@@ -100,7 +123,7 @@ function WindowObj.GetState(self:WindowObj)
     end
 end
 
-function WindowObj.SetState(self:WindowObj, state:boolean, Anim:string?, Speed:number?)
+function WindowObj.SetState(self:WindowObj, state:boolean, Anim:string?, Speed:number?, IgnoreScale:boolean?)
     if Anim == "Pop" then
         self:Pop(state, Speed)
     else
@@ -109,6 +132,10 @@ function WindowObj.SetState(self:WindowObj, state:boolean, Anim:string?, Speed:n
         elseif jUtil.HasProperty(self.Window, "Enabled") then
             self.Window.Enabled = state
         end
+        if not IgnoreScale then
+            local NewScale = state and 1 or 0
+            ChangeScale(self.UIScale, NewScale)
+        end
     end
 end
 
@@ -116,24 +143,26 @@ function WindowObj.Pop(self:WindowObj, state:boolean, speed:number?)
     self.Janitor:Cleanup()
     self.Action = state and "Open" or "Close"
     if state then
-        self:SetState(state)
+        self:SetState(state, nil, nil, true)
     end
-    local Window:GuiObject = self.Window
-    local UIScale = Window:FindFirstChildWhichIsA("UIScale") :: UIScale
-    if not UIScale then
-        warn("No UIScale present!")
-    end
-    local tween: Tween
-    if state then
-        tween = TweenService:Create(UIScale, TweenInfo.new(speed or 0.35, Enum.EasingStyle.Back), {Scale = 1})
-    else
-        tween = TweenService:Create(UIScale, TweenInfo.new(speed or 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 0})
-    end
-    tween:Play()
-    self.Janitor:Add(tween.Completed:Once(function()
+    local function Stop()
         self:SetState(state)
         self.Action = nil
-    end))
+    end
+    if not self.UIScale then
+        warn("No UIScale present!")
+        Stop()
+        return
+    end
+    local tween: Tween
+    local Effector = GetEffector(self.UIScale)
+    if state then
+        tween = Effector:Tween("Window", 1, TweenInfo.new(speed or 0.35, Enum.EasingStyle.Back))
+    else
+        tween = Effector:Tween("Window", 0, TweenInfo.new(speed or 0.2, Enum.EasingStyle.Linear))
+    end
+    tween:Play()
+    self.Janitor:Add(tween.Completed:Once(Stop))
 end
 
 function module.ButtonNew(Button:GuiButton)
